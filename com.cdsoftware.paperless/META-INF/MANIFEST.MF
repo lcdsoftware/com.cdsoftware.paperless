@@ -23,7 +23,9 @@ Service-Component: OSGI-INF/ModelFactory.xml,
  OSGI-INF/EventFactory.xml,
  OSGI-INF/CalloutFactory.xml,
  OSGI-INF/ProcessFactory.xml,
- OSGI-INF/FormFactory.xml
+ OSGI-INF/FormFactory.xml,
+ OSGI-INF/archivepaperless.xml,
+ OSGI-INF/attachmentpaperless.xml
 Bundle-ClassPath: .,
  lib/freemarker.jar
 Bundle-Activator: org.adempiere.plugin.utils.Incremental2PackActivator
