@@ -1,78 +1,109 @@
 # com.cdsoftware.paperless
+
 - Copyright: 2026 https://www.casadelsoftware.com
-- Repository: https://bitbucket.org/cdsoftware/com.cdsoftware.paperless.git
+- Repository: https://github.com/lcdsoftware/com.cdsoftware.paperless
 - License: GPL 2
 
 ## Description
-The `com.cdsoftware.paperless` plugin is a custom extension for iDempiere. It extends standard system capabilities by providing database models, and Application Dictionary configurations (2Pack) to support customized business workflows.
+
+An iDempiere 12 OSGi storage-provider integration with Paperless-ngx. It supplies attachment and archive storage services that upload documents to Paperless-ngx, retrieve them when iDempiere loads a record, and request remote deletion. iDempiere retains document references in its attachment or archive data.
 
 ## Contributors
-- 2026 Casa del Software <info@casadelsoftware.com>
+
+- 2026 Javier Galindo <javiergalindo@casadelsoftware.com>.
 
 ## Components
+
 - iDempiere Plugin [com.cdsoftware.paperless](com.cdsoftware.paperless)
 - iDempiere Unit Test Fragment [com.cdsoftware.paperless.test](com.cdsoftware.paperless.test)
 
 ## Prerequisites
-- Java 11, commands `java` and `javac`.
-- iDempiere 11
+
+- Java 17, commands `java` and `javac`.
+- iDempiere 12.
+- An accessible Paperless-ngx service with document API permissions.
+- An iDempiere Storage Provider record configured with the Paperless method, service URL, username and password.
 
 ## Features/Documentation
+
 ### Source Structure
+
+```text
+com.cdsoftware.paperless/src
+└── com
+    └── cdsoftware
+        └── paperless
+            ├── base
+            │   ├── BundleInfo.java
+            │   ├── CustomCallout.java
+            │   ├── CustomEvent.java
+            │   ├── CustomForm.java
+            │   └── CustomProcess.java
+            ├── component
+            │   ├── CalloutFactory.java
+            │   ├── EventFactory.java
+            │   ├── FormFactory.java
+            │   ├── ModelFactory.java
+            │   └── ProcessFactory.java
+            ├── model
+            │   ├── ArchivePaperless.java
+            │   └── AttachmentPaperless.java
+            └── util
+                ├── DMSConfig.java
+                ├── FileTemplateBuilder.java
+                ├── KeyValueLogger.java
+                ├── PaperlessUtil.java
+                ├── SqlBuilder.java
+                └── TimestampUtil.java
+com.cdsoftware.paperless.test/src
+└── com
+    └── cdsoftware
+        └── paperless
+            ├── test
+            │   ├── assertion
+            │   │   └── Annotations.java
+            │   └── util
+            │       ├── RandomTestUtil.java
+            │       └── ReflectionTestUtil.java
+            └── util
+                ├── FileTemplateBuilderTest.java
+                ├── KeyValueLoggerTest.java
+                ├── SqlBuilderTest.java
+                └── TimestampUtilTest.java
 ```
-├── com/
-        ├── cdsoftware/
-            ├── paperless/
-                ├── util/
-                    ├── DMSConfig.java
-                    ├── FileTemplateBuilder.java
-                    ├── KeyValueLogger.java
-                    ├── PaperlessUtil.java
-                    ├── SqlBuilder.java
-                    ├── TimestampUtil.java
-                ├── model/
-                    ├── ArchivePaperless.java
-                    ├── AttachmentPaperless.java
-                ├── base/
-                    ├── BundleInfo.java
-                    ├── CustomCallout.java
-                    ├── CustomEvent.java
-                    ├── CustomForm.java
-                    ├── CustomProcess.java
-                ├── component/
-                    ├── CalloutFactory.java
-                    ├── EventFactory.java
-                    ├── FormFactory.java
-                    ├── ModelFactory.java
-                    ├── ProcessFactory.java
-```
 
+### Storage Services
 
-
-
-### Generated Models
-
-| Model | Table | Functional role |
+| Service | iDempiere interface | Functional behavior |
 | --- | --- | --- |
-| `AttachmentPaperless` | `AttachmentPaperless` | Implementation of {@link IAttachmentStore} for Paperless-ngx integration. Handles attachment storage operations using a ZIP manifest pattern to store Paperless document IDs as references. @version 1.0 |
-| `ArchivePaperless` | `ArchivePaperless` | Implementation of {@link IArchiveStore} for Paperless-ngx integration. Handles archive storage operations by storing Paperless document IDs as references in the archive's binary data field. @version 1.0 |
+| `AttachmentPaperless` | `IAttachmentStore` | Uploads attachment entries using the Paperless-ngx document API. Stores returned references in a ZIP manifest within the iDempiere attachment binary data and sets the attachment title to `zip`. On load, it downloads each referenced document and reconstructs the attachment entries. It also handles entry and whole-attachment deletion. |
+| `ArchivePaperless` | `IArchiveStore` | Uploads archive content and stores the returned Paperless document reference as UTF-8 bytes in the archive binary data. On load, it downloads the referenced document. It offers remote archive deletion; save is immediate and flush is a no-op. |
 
+Both services are registered by OSGi Declarative Services descriptors in `OSGI-INF/attachmentpaperless.xml` and `OSGI-INF/archivepaperless.xml`. Each registers the storage method `Paperless` with ranking `100`. The bundle also registers annotation-based factories, but this source tree contains no concrete process, callout, event or form implementations.
 
-### Application Dictionary Metadata (2Pack)
+### Paperless-ngx API and Configuration
 
-| Package / File Name | Purpose & Dictionary Configurations |
-| --- | --- |
-| `CalloutFactory.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `EventFactory.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `FormFactory.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `ModelFactory.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `ProcessFactory.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `archivepaperless.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `attachmentpaperless.xml` | Metadata package containing Application Dictionary (AD) configurations. |
-| `xml-invoice.xml` | Metadata package containing Application Dictionary (AD) configurations. |
+`PaperlessUtil` reads the Storage Provider URL, username, password and folder value. It encodes `username:password` for HTTP Basic authentication. Uploads use `/api/documents/post_document/`; task polling uses `/api/tasks/`; downloads use `/api/documents/{id}/download/`; deletes use `/api/documents/{id}/`. The configured folder is passed to the upload helper but is currently unused there, so this plugin does not organize uploaded documents into that folder.
 
+For this implementation, configure the Storage Provider URL with a trailing `/`. Upload and delete helpers normalize their base URL, while the download helper concatenates the URL and `api/documents/...` directly. Check that credentials can upload, download and delete documents in the target Paperless-ngx instance.
+
+### Known Behavior and Limitations
+
+- The archive service and attachment service use different reference formats: plain UTF-8 document reference for archives, ZIP manifest of filename-to-reference entries for attachments. A non-`zip` attachment title is treated as legacy local binary data rather than downloaded from Paperless-ngx.
+- Attachment upload returns success if at least one entry uploaded, even if another entry failed. It can also return success using existing binary data when no new upload succeeds. Review remote documents and attachment entries after a partial failure.
+- Whole-attachment deletion calls the remote API for each reference but ignores individual delete results and returns success unless an exception occurs. Single-entry and archive deletion do check the remote result.
+- Upload task polling can return a task ID after timeout. That value may be stored as a reference even though document creation has not been confirmed; check the task and document in Paperless-ngx before treating it as complete. `ArchivePaperless.save` logs upload exceptions and returns without propagating them to its caller.
+- The download helper reads the HTTP error body as bytes on a non-2xx response when an error stream exists. Those bytes can be presented as document content instead of a clean failure. If the error stream is absent or an I/O exception occurs, an attachment entry can be omitted and archive load can return `null`.
+- The plugin has no included Application Dictionary 2Pack ZIP or setup process. The `OSGI-INF/*.xml` files are service descriptors, not dictionary packages. The test fragment's `xml-invoice.xml` is a test resource.
 
 ## Instructions
-1. Deploy the `com.cdsoftware.paperless` OSGi bundle in your iDempiere environment.
-2. Restart iDempiere and refresh OSGi bundles to register factories.
-3. Configure dictionary and role access rules as needed.
+
+1. Configure and test a Paperless-ngx endpoint and an account with the required document API permissions.
+2. Install the `com.cdsoftware.paperless` OSGi bundle in iDempiere 12 and refresh or restart the runtime so its two storage services register.
+3. Create or update an iDempiere Storage Provider record for method `Paperless`. Set its URL with a trailing `/`, username and password. The folder setting has no effect on uploads in this implementation.
+4. Select that provider for the attachment or archive storage configuration that you intend to use. Verify a controlled upload, reload and delete through the iDempiere UI and the Paperless-ngx API before operational use.
+
+## Extra Links
+
+- [Paperless-ngx](https://docs.paperless-ngx.com/)
+- [iDempiere](https://www.idempiere.org/)
