@@ -87,15 +87,6 @@ Both services are registered by OSGi Declarative Services descriptors in `OSGI-I
 
 For this implementation, configure the Storage Provider URL with a trailing `/`. Upload and delete helpers normalize their base URL, while the download helper concatenates the URL and `api/documents/...` directly. Check that credentials can upload, download and delete documents in the target Paperless-ngx instance.
 
-### Known Behavior and Limitations
-
-- The archive service and attachment service use different reference formats: plain UTF-8 document reference for archives, ZIP manifest of filename-to-reference entries for attachments. A non-`zip` attachment title is treated as legacy local binary data rather than downloaded from Paperless-ngx.
-- Attachment upload returns success if at least one entry uploaded, even if another entry failed. It can also return success using existing binary data when no new upload succeeds. Review remote documents and attachment entries after a partial failure.
-- Whole-attachment deletion calls the remote API for each reference but ignores individual delete results and returns success unless an exception occurs. Single-entry and archive deletion do check the remote result.
-- Upload task polling can return a task ID after timeout. That value may be stored as a reference even though document creation has not been confirmed; check the task and document in Paperless-ngx before treating it as complete. `ArchivePaperless.save` logs upload exceptions and returns without propagating them to its caller.
-- The download helper reads the HTTP error body as bytes on a non-2xx response when an error stream exists. Those bytes can be presented as document content instead of a clean failure. If the error stream is absent or an I/O exception occurs, an attachment entry can be omitted and archive load can return `null`.
-- The plugin has no included Application Dictionary 2Pack ZIP or setup process. The `OSGI-INF/*.xml` files are service descriptors, not dictionary packages. The test fragment's `xml-invoice.xml` is a test resource.
-
 ## Instructions
 
 1. Configure and test a Paperless-ngx endpoint and an account with the required document API permissions.
